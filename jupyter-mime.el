@@ -260,7 +260,7 @@ used instead of `jupyter-mime-types'.
 
 When no valid mimetype is present, a warning is shown and nil is
 returned."
-  (cl-assert plist json-plist)
+  (cl-assert (json-plist-p plist))
   (let ((content (jupyter-normalize-data plist metadata)))
     (cond
      ((let ((tick (buffer-modified-tick)))
