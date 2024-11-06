@@ -422,7 +422,7 @@ Defaults to `jupyter-org-jump-to-block-context-lines'."
                               (goto-char (match-beginning 0))
                               (let ((s (point)))
                                 (forward-line context)
-                                (buffer-substring s (point)))))
+                                (filter-buffer-substring s (point)))))
                     (line-number-at-pos (match-beginning 0)))
               blocks)))
     (ivy-read "block: " (reverse blocks)
@@ -500,7 +500,7 @@ returned region.  The region is returned as (BEGIN . END)"
   "Copy the src block at the current point and its results."
   (interactive)
   (let ((region (jupyter-org-src-block-bounds)))
-    (kill-new (buffer-substring (car region) (cdr region)))))
+    (kill-new (filter-buffer-substring (car region) (cdr region)))))
 
 ;;;###autoload
 (defun jupyter-org-clone-block (&optional below)
