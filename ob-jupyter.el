@@ -128,8 +128,10 @@ if there is no source block at point."
           (org-babel-jupyter-session-key params))))))
 
 ;;; `ob' integration
+(defvar org-babel-jupyter--src-block-kernel-language "python"
+  "Current src-block kernel language.")
 
-(defun org-babel-variable-assignments:jupyter (params &optional lang)
+(defun org-babel-variable-assignments:jupyter (params)
   "Assign variables in PARAMS according to the Jupyter kernel language.
 LANG is the kernel language of the source block.  If LANG is nil,
 get the kernel language from the current source block.
@@ -138,8 +140,8 @@ The variables are assigned by looking for the function
 `org-babel-variable-assignments:LANG'.  If this function does not
 exist or if LANG cannot be determined, assign variables using
 `org-babel-variable-assignments:python'."
-  (or lang (setq lang (org-babel-jupyter--src-block-kernel-language)))
-  (let ((fun (when lang
+  (let* ((lang org-babel-jupyter--src-block-kernel-language)
+         (fun (when lang
                (intern (format "org-babel-variable-assignments:%s" lang)))))
     (if (functionp fun) (funcall fun params)
       (require 'ob-python)
@@ -158,7 +160,7 @@ See `org-babel-expand-body:jupyter' for possible changes that can
 be in CHANGELIST."
   code)
 
-(defun org-babel-expand-body:jupyter (body params &optional var-lines lang)
+(defun org-babel-expand-body:jupyter (body params &optional var-lines)
   "Expand BODY according to PARAMS.
 
 BODY is the code to expand, PARAMS should be the header arguments
@@ -180,8 +182,8 @@ If PARAMS has a :dir parameter, the expanded code is passed to
 `org-babel-jupyter-transform-code' with a changelist that
 includes the :dir parameter with the directory being an absolute
 path."
-  (or lang (setq lang (org-babel-jupyter--src-block-kernel-language)))
-  (let* ((expander (when lang
+  (let* ((lang org-babel-jupyter--src-block-kernel-language)
+         (expander (when lang
                      (intern (format "org-babel-expand-body:%s" lang))))
          (expanded (if (functionp expander)
                        (funcall expander body params)
@@ -542,8 +544,9 @@ the PARAMS alist."
            (session (alist-get :session params))
            (buf (org-babel-jupyter-initiate-session session params))
            (jupyter-current-client (buffer-local-value 'jupyter-current-client buf))
-           (lang (jupyter-kernel-language jupyter-current-client))
-           (vars (org-babel-variable-assignments:jupyter params lang))
+           (lang (org-babel-jupyter--src-block-kernel-language))
+           (org-babel-jupyter--src-block-kernel-language lang)
+           (vars (org-babel-variable-assignments:jupyter params))
            (code (progn
                    (when-let* ((dir (alist-get :dir params)))
                      ;; `default-directory' is already set according
@@ -552,7 +555,7 @@ the PARAMS alist."
                      ;; `org-babel-expand-body:jupyter' does not try
                      ;; to re-expand the path. See #302.
                      (setf (alist-get :dir params) default-directory))
-                   (org-babel-expand-body:jupyter body params vars lang))))
+                   (org-babel-expand-body:jupyter body params vars))))
       (pcase-let ((`(,req ,maybe-result)
                    (org-babel-jupyter--execute code async-p)))
         ;; KLUDGE: Remove the file result-parameter so that
@@ -714,8 +717,9 @@ Similarly, associate the same value for LANG in
     (lambda (op)
       (defalias (org-babel-jupyter--babel-op-symbol
                  op (format "jupyter-%s" lang))
-        (org-babel-jupyter--babel-op-symbol
-         op "jupyter")))
+        (let ((org-babel-jupyter--src-block-kernel-language lang))
+          (lambda (&rest args)
+            (apply (org-babel-jupyter--babel-op-symbol op "jupyter") args)))))
     (lambda (var)
       (let ((jupyter-var
              (org-babel-jupyter--babel-var-symbol
